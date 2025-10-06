@@ -36,7 +36,7 @@ public class Constants {
     public static final int kDriverControllerPort = 0;
     }
     public static class Vision {
-        public static final String kCameraName = "CAM_FL"; 
+        public static final String kCameraNameFL = "CAM_FL"; 
         public static final String kCameraNameFR = "CAM_FR";
         // or "Arducam" or whatever your camera is named
         // Cam mounted facing forward, half a meter forward of center, half a meter up from center,

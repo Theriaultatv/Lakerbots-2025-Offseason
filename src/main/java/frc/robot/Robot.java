@@ -30,8 +30,8 @@ public class Robot extends TimedRobot {
         controller = new XboxController(Constants.OperatorConstants.kDriverControllerPort);
 
         // Set up PhotonVision camera
-        cameraFL = new PhotonCamera(Vision.kCameraName);
-        cameraFR = new PhotonCamera(Vision.kCameraName);
+        cameraFL = new PhotonCamera(Vision.kCameraNameFL);
+        cameraFR = new PhotonCamera(Vision.kCameraNameFR);
 
         // Create a network table
         NetworkTableInstance inst = NetworkTableInstance.getDefault();
@@ -39,7 +39,7 @@ public class Robot extends TimedRobot {
         CameraServer.addServer("http://10.80.46.11:1181/stream.mjpg"); // FL Camera
         CameraServer.addServer("http://10.80.46.11:1184/stream.mjpg"); // FR Camera
         NetworkTable visionTable = inst.getTable("photonvision");
-        NetworkTableEntry targetYaw2 = visionTable.getEntry("targetYaw2");
+        NetworkTableEntry targetYawFR = visionTable.getEntry("targetYaw2");
             // targetYaw2 = target.getYaw();
             // Now you can grabe the table published by the Orange PI
             
@@ -78,40 +78,40 @@ public class Robot extends TimedRobot {
 
     @Override
     public void teleopPeriodic() {
-        boolean targetVisible = false;
-        double targetYaw = 0.0;
+        boolean targetVisibleFL = false;
+        double targetYawFL = 0.0;
 
-        var result = cameraFL.getLatestResult();
-        if (result.hasTargets()) {
-            for (var target : result.getTargets()) {
-                if (target.getFiducialId() == 14) {
-                    targetYaw = target.getYaw();
-                    targetVisible = true;
+        var resultFL = cameraFL.getLatestResult();
+        if (resultFL.hasTargets()) {
+            for (var targetFL : resultFL.getTargets()) {
+                if (targetFL.getFiducialId() == 14) {
+                    targetYawFL = targetFL.getYaw();
+                    targetVisibleFL = true;
                     //targetResult = result.getTargets;
                     break;
                 }
             }
         }
-        boolean targetVisible2 = false;
-        double targetYaw2 = 0.0;
+        boolean targetVisibleFR = false;
+        double targetYawFR = 0.0;
 
-        var result2 = cameraFR.getLatestResult();
-        if (result.hasTargets()) {
-            for (var target : result2.getTargets()) {
-                if (target.getFiducialId() == 14) {
-                    targetYaw2 = target.getYaw();
-                    targetVisible2 = true;
+        var resultFR = cameraFR.getLatestResult();
+        if (resultFR.hasTargets()) {
+            for (var targetFR : resultFR.getTargets()) {
+                if (targetFR.getFiducialId() == 14) {
+                    targetYawFR = targetFR.getYaw();
+                    targetVisibleFR = true;
                     //targetResult = result.getTargets;
                     break;
                 }
             }
         }
         // SmartDashboard output
-        SmartDashboard.putBoolean("Vision Target Visible", targetVisible);
-        SmartDashboard.putBoolean("Vision Target Visible 2", targetVisible2);
+        SmartDashboard.putBoolean("Vision Target Visible FL", targetVisibleFL);
+        SmartDashboard.putBoolean("Vision Target Visible FR", targetVisibleFR);
         //SmartDashboard.putNumber("Targets Result", targetResult);
-        SmartDashboard.putNumber("Target Yaw", targetYaw);
-        SmartDashboard.putNumber("Target Yaw 2", targetYaw2);
+        SmartDashboard.putNumber("Target Yaw FL", targetYawFL);
+        SmartDashboard.putNumber("Target Yaw FR", targetYawFR);
         
         
 
@@ -119,8 +119,8 @@ public class Robot extends TimedRobot {
         //SmartDashboard.putData("FL Camera", "http://10.80.46.11:1181/stream.mjpg");
 
         // OPTIONAL: If you want to override the driver's turn when 'A' is held
-        if (controller.getAButton() && targetVisible) {
-            double turnCommand = -1.0 * targetYaw * 0.02 * Swerve.kMaxAngularSpeed;
+        if (controller.getAButton() && targetVisibleFL) {
+            double turnCommand = -1.0 * targetYawFL * 0.02 * Swerve.kMaxAngularSpeed;
             SmartDashboard.putNumber("Auto Turn Command", turnCommand);
             // If you want to inject this into drivetrain, you'd need access
             // to drivetrain object, or push this to NetworkTables / a global state
