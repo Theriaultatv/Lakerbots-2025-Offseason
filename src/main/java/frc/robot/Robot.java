@@ -39,7 +39,7 @@ public class Robot extends TimedRobot {
         CameraServer.addServer("http://10.80.46.11:1181/stream.mjpg"); // FL Camera
         CameraServer.addServer("http://10.80.46.11:1184/stream.mjpg"); // FR Camera
         NetworkTable visionTable = inst.getTable("photonvision");
-        NetworkTableEntry targetYawFR = visionTable.getEntry("targetYaw2");
+        NetworkTableEntry targetYaw2 = visionTable.getEntry("targetYaw2");
             // targetYaw2 = target.getYaw();
             // Now you can grabe the table published by the Orange PI
             
@@ -78,40 +78,40 @@ public class Robot extends TimedRobot {
 
     @Override
     public void teleopPeriodic() {
-        boolean targetVisibleFL = false;
-        double targetYawFL = 0.0;
+        boolean targetVisible = false;
+        double targetYaw = 0.0;
 
-        var resultFL = cameraFL.getLatestResult();
-        if (resultFL.hasTargets()) {
-            for (var targetFL : resultFL.getTargets()) {
-                if (targetFL.getFiducialId() == 14) {
-                    targetYawFL = targetFL.getYaw();
-                    targetVisibleFL = true;
+        var result = cameraFL.getLatestResult();
+        if (result.hasTargets()) {
+            for (var target : result.getTargets()) {
+                if (target.getFiducialId() == 14) {
+                    targetYaw = target.getYaw();
+                    targetVisible = true;
                     //targetResult = result.getTargets;
                     break;
                 }
             }
         }
-        boolean targetVisibleFR = false;
-        double targetYawFR = 0.0;
+        boolean targetVisible2 = false;
+        double targetYaw2 = 0.0;
 
-        var resultFR = cameraFR.getLatestResult();
-        if (resultFR.hasTargets()) {
-            for (var targetFR : resultFR.getTargets()) {
-                if (targetFR.getFiducialId() == 14) {
-                    targetYawFR = targetFR.getYaw();
-                    targetVisibleFR = true;
+        var result2 = cameraFR.getLatestResult();
+        if (result.hasTargets()) {
+            for (var target : result2.getTargets()) {
+                if (target.getFiducialId() == 14) {
+                    targetYaw2 = target.getYaw();
+                    targetVisible2 = true;
                     //targetResult = result.getTargets;
                     break;
                 }
             }
         }
         // SmartDashboard output
-        SmartDashboard.putBoolean("Vision Target Visible FL", targetVisibleFL);
-        SmartDashboard.putBoolean("Vision Target Visible FR", targetVisibleFR);
+        SmartDashboard.putBoolean("Vision Target Visible", targetVisible);
+        SmartDashboard.putBoolean("Vision Target Visible 2", targetVisible2);
         //SmartDashboard.putNumber("Targets Result", targetResult);
-        SmartDashboard.putNumber("Target Yaw FL", targetYawFL);
-        SmartDashboard.putNumber("Target Yaw FR", targetYawFR);
+        SmartDashboard.putNumber("Target Yaw", targetYaw);
+        SmartDashboard.putNumber("Target Yaw 2", targetYaw2);
         
         
 
@@ -119,8 +119,8 @@ public class Robot extends TimedRobot {
         //SmartDashboard.putData("FL Camera", "http://10.80.46.11:1181/stream.mjpg");
 
         // OPTIONAL: If you want to override the driver's turn when 'A' is held
-        if (controller.getAButton() && targetVisibleFL) {
-            double turnCommand = -1.0 * targetYawFL * 0.02 * Swerve.kMaxAngularSpeed;
+        if (controller.getAButton() && targetVisible) {
+            double turnCommand = -1.0 * targetYaw * 0.02 * Swerve.kMaxAngularSpeed;
             SmartDashboard.putNumber("Auto Turn Command", turnCommand);
             // If you want to inject this into drivetrain, you'd need access
             // to drivetrain object, or push this to NetworkTables / a global state
