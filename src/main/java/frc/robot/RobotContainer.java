@@ -24,8 +24,11 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
 
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
+import frc.robot.subsystems.VisionSubsystem;
+import frc.robot.commands.AlignToAprilTagCommand;
 
 public class RobotContainer {
+    private final VisionSubsystem visionSubsystem = new VisionSubsystem();
     private double MaxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
     private double MaxAngularRate = RotationsPerSecond.of(0.75).in(RadiansPerSecond); // 3/4 of a rotation per second max angular velocity
 
@@ -71,21 +74,30 @@ public class RobotContainer {
             point.withModuleDirection(new Rotation2d(-joystick.getLeftY(), -joystick.getLeftX()))
         ));
 
-        // Run SysId routines when holding back/start and X/Y.
+        // Run SysId routines when holding back and X/Y.
         // Note that each routine should be run exactly once in a single log.
         joystick.back().and(joystick.y()).whileTrue(drivetrain.sysIdDynamic(Direction.kForward));
         joystick.back().and(joystick.x()).whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
-        joystick.start().and(joystick.y()).whileTrue(drivetrain.sysIdQuasistatic(Direction.kForward));
-        joystick.start().and(joystick.x()).whileTrue(drivetrain.sysIdQuasistatic(Direction.kReverse));
 
-        // reset the field-centric heading on left bumper press
-        joystick.leftBumper().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
+        // Reset the field-centric heading when start button is pressed
+        joystick.start().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
+
+        // Auto-align to AprilTag commands:
+        // Left bumper: Align 1 foot (0.3048 meters) to the LEFT of the tag
+        joystick.leftBumper().whileTrue(new AlignToAprilTagCommand(drivetrain, visionSubsystem, 0.3048));
+        
+        // Right bumper: Align 1 foot (0.3048 meters) to the RIGHT of the tag
+        joystick.rightBumper().whileTrue(new AlignToAprilTagCommand(drivetrain, visionSubsystem, -0.3048));
 
         drivetrain.registerTelemetry(logger::telemeterize);
     }
 
     public Command getAutonomousCommand() {
         return Commands.print("No autonomous command configured");
+    }
+
+    public VisionSubsystem getVisionSubsystem() {
+        return visionSubsystem;
     }
 }
   

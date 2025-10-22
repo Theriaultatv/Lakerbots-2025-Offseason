@@ -10,13 +10,9 @@ import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 
-import org.photonvision.PhotonCamera;
 import frc.robot.Constants.Swerve;
-import frc.robot.Constants.Vision;
 
 public class Robot extends TimedRobot {
-    private PhotonCamera cameraFL;
-    private PhotonCamera cameraFR;
     private XboxController controller;
     private Command m_autonomousCommand;
 
@@ -29,10 +25,6 @@ public class Robot extends TimedRobot {
         // Controller (if needed separately from RobotContainer)
         controller = new XboxController(Constants.OperatorConstants.kDriverControllerPort);
 
-        // Set up PhotonVision camera
-        cameraFL = new PhotonCamera(Vision.kCameraNameFL);
-        cameraFR = new PhotonCamera(Vision.kCameraNameFR);
-
         // Create a network table
         NetworkTableInstance inst = NetworkTableInstance.getDefault();
         inst.startClient3("10.80.46.11"); // IP of the Orange Pi
@@ -41,9 +33,7 @@ public class Robot extends TimedRobot {
         NetworkTable visionTable = inst.getTable("photonvision");
         NetworkTableEntry targetYaw2 = visionTable.getEntry("targetYaw2");
             // targetYaw2 = target.getYaw();
-            // Now you can grabe the table published by the Orange PI
-            
-
+            // Now you can grab the table published by the Orange PI
     }
 
     @Override
@@ -78,52 +68,51 @@ public class Robot extends TimedRobot {
 
     @Override
     public void teleopPeriodic() {
-        boolean targetVisible = false;
-        double targetYaw = 0.0;
-
-        var result = cameraFL.getLatestResult();
-        if (result.hasTargets()) {
-            for (var target : result.getTargets()) {
-                if (target.getFiducialId() == 14) {
-                    targetYaw = target.getYaw();
-                    targetVisible = true;
-                    //targetResult = result.getTargets;
-                    break;
-                }
-            }
-        }
-        boolean targetVisible2 = false;
-        double targetYaw2 = 0.0;
-
-        var result2 = cameraFR.getLatestResult();
-        if (result.hasTargets()) {
-            for (var target : result2.getTargets()) {
-                if (target.getFiducialId() == 14) {
-                    targetYaw2 = target.getYaw();
-                    targetVisible2 = true;
-                    //targetResult = result.getTargets;
-                    break;
-                }
-            }
-        }
-        // SmartDashboard output
-        SmartDashboard.putBoolean("Vision Target Visible", targetVisible);
-        SmartDashboard.putBoolean("Vision Target Visible 2", targetVisible2);
-        //SmartDashboard.putNumber("Targets Result", targetResult);
-        SmartDashboard.putNumber("Target Yaw", targetYaw);
-        SmartDashboard.putNumber("Target Yaw 2", targetYaw2);
+        // Vision data is now handled by VisionSubsystem and automatically updated to SmartDashboard
+        // Get vision data from VisionSubsystem through RobotContainer if needed
+        var visionSubsystem = m_robotContainer.getVisionSubsystem();
         
+        // Get data from both cameras independently
+        boolean targetVisibleFL = visionSubsystem.isTargetVisibleFL();
+        double targetYawFL = visionSubsystem.getTargetYawFL();
+        boolean targetVisibleFR = visionSubsystem.isTargetVisibleFR();
+        double targetYawFR = visionSubsystem.getTargetYawFR();
+
+        // Output all Xbox controller button states to SmartDashboard
+        SmartDashboard.putBoolean("Controller A Button", controller.getAButton());
+        SmartDashboard.putBoolean("Controller B Button", controller.getBButton());
+        SmartDashboard.putBoolean("Controller X Button", controller.getXButton());
+        SmartDashboard.putBoolean("Controller Y Button", controller.getYButton());
+        SmartDashboard.putBoolean("Controller Left Bumper", controller.getLeftBumperButton());
+        SmartDashboard.putBoolean("Controller Right Bumper", controller.getRightBumperButton());
+        SmartDashboard.putBoolean("Controller Back Button", controller.getBackButton());
+        SmartDashboard.putBoolean("Controller Start Button", controller.getStartButton());
+        SmartDashboard.putBoolean("Controller Left Stick Button", controller.getLeftStickButton());
+        SmartDashboard.putBoolean("Controller Right Stick Button", controller.getRightStickButton());
         
+        // Output all Xbox controller axis values to SmartDashboard
+        SmartDashboard.putNumber("Controller Left Stick X", controller.getLeftX());
+        SmartDashboard.putNumber("Controller Left Stick Y", controller.getLeftY());
+        SmartDashboard.putNumber("Controller Right Stick X", controller.getRightX());
+        SmartDashboard.putNumber("Controller Right Stick Y", controller.getRightY());
+        SmartDashboard.putNumber("Controller Left Trigger", controller.getLeftTriggerAxis());
+        SmartDashboard.putNumber("Controller Right Trigger", controller.getRightTriggerAxis());
+        
+        // Output D-Pad (POV) state
+        SmartDashboard.putNumber("Controller POV", controller.getPOV());
 
-        // Camera Feeds
-        //SmartDashboard.putData("FL Camera", "http://10.80.46.11:1181/stream.mjpg");
-
-        // OPTIONAL: If you want to override the driver's turn when 'A' is held
-        if (controller.getAButton() && targetVisible) {
-            double turnCommand = -1.0 * targetYaw * 0.02 * Swerve.kMaxAngularSpeed;
-            SmartDashboard.putNumber("Auto Turn Command", turnCommand);
+        // OPTIONAL: Auto-turn using FL camera when 'A' button is held
+        if (controller.getAButton() && targetVisibleFL) {
+            double turnCommand = -1.0 * targetYawFL * 0.02 * Swerve.kMaxAngularSpeed;
+            SmartDashboard.putNumber("Auto Turn Command FL", turnCommand);
             // If you want to inject this into drivetrain, you'd need access
             // to drivetrain object, or push this to NetworkTables / a global state
+        }
+        
+        // OPTIONAL: Auto-turn using FR camera when 'B' button is held
+        if (controller.getBButton() && targetVisibleFR) {
+            double turnCommand = -1.0 * targetYawFR * 0.02 * Swerve.kMaxAngularSpeed;
+            SmartDashboard.putNumber("Auto Turn Command FR", turnCommand);
         }
     }
 
