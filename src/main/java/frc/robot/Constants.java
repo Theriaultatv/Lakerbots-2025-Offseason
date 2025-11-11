@@ -176,4 +176,18 @@ public class Constants {
         public static final double REPLANNING_TOTAL_ERROR_THRESHOLD = 3.0; // meters
         public static final double REPLANNING_ERROR_SPIKE_THRESHOLD = 2.0; // meters
     }
+
+    public static class Pumpkin {
+        // Motor CAN ID
+        public static final int kMotorCANId = 13;
+        
+        // CAN bus name (same as swerve drivetrain)
+        public static final String kCANBusName = "canivore";
+        
+        // Voltage output (volts)
+        public static final double kVoltageOutput = 2.0;
+        
+        // Duration to run motor (seconds)
+        public static final double kRunDuration = 4.0;
+    }
 }

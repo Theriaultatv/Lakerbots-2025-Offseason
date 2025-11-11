@@ -41,12 +41,15 @@ import java.io.File;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 import frc.robot.subsystems.VisionSubsystem;
+import frc.robot.subsystems.PumpkinSubsystem;
 import frc.robot.commands.AlignToAprilTagCommand;
+import frc.robot.commands.RunPumpkinCommand;
 
 import java.util.Optional;
 
 public class RobotContainer {
     private final VisionSubsystem visionSubsystem = new VisionSubsystem();
+    private final PumpkinSubsystem pumpkinSubsystem = new PumpkinSubsystem();
     private double MaxSpeed = TunerConstants.kSpeedAt12Volts.in(MetersPerSecond); // kSpeedAt12Volts desired top speed
     private double MaxAngularRate = RotationsPerSecond.of(0.75).in(RadiansPerSecond); // 3/4 of a rotation per second max angular velocity
 
@@ -275,6 +278,9 @@ public class RobotContainer {
         // Right bumper: Align 1 foot (0.3048 meters) to the RIGHT of the tag
         joystick.rightBumper().whileTrue(new AlignToAprilTagCommand(drivetrain, visionSubsystem, -0.3048));
 
+        // Y button: Run Pumpkin motor at 2V for 4 seconds
+        joystick.y().onTrue(new RunPumpkinCommand(pumpkinSubsystem).withTimeout(Constants.Pumpkin.kRunDuration));
+
         drivetrain.registerTelemetry(logger::telemeterize);
     }
 
@@ -375,6 +381,10 @@ public class RobotContainer {
 
     public VisionSubsystem getVisionSubsystem() {
         return visionSubsystem;
+    }
+
+    public PumpkinSubsystem getPumpkinSubsystem() {
+        return pumpkinSubsystem;
     }
 }
   
