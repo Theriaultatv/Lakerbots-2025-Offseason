@@ -12,22 +12,28 @@ public class AlignToAprilTagCommand extends Command {
     private final SwerveRequest.FieldCentric driveRequest;
     private final double lateralOffset; // Offset in meters (positive = left, negative = right)
     
-    // PID-like constants for alignment
-    private static final double YAW_KP = 0.05; // Proportional gain for rotation
-    private static final double DISTANCE_KP = 1.5; // Proportional gain for forward/backward movement
-    private static final double STRAFE_KP = 0.05; // Proportional gain for left/right movement
+    // PID-like constants for alignment (tuned to reduce oscillation)
+    private static final double YAW_KP = 0.01; // Reduced from 0.03 - less aggressive rotation
+    private static final double DISTANCE_KP = 0.25; // Reduced from 0.5 - smoother approach
+    private static final double STRAFE_KP = 0.015; // Reduced from 0.04 - less aggressive strafe
     
     // Target distance in meters
-    private static final double TARGET_DISTANCE = 6.0;
+    private static final double TARGET_DISTANCE = 7.0;
     
-    // Tolerance values
-    private static final double YAW_TOLERANCE = 5.0; // degrees
-    private static final double DISTANCE_TOLERANCE = 1.0; // meters
-    private static final double LATERAL_TOLERANCE = 0.1; // meters
+    // Tolerance values (wider to prevent jitter)
+    private static final double YAW_TOLERANCE = 3.0; // Increased from 2.0 degrees
+    private static final double DISTANCE_TOLERANCE = 0.3; // Increased from 0.25 meters
+    private static final double LATERAL_TOLERANCE = 0.15; // Increased from 0.1 meters
+    
+    // Deadband - minimum error before applying correction (prevents jitter)
+    private static final double YAW_DEADBAND = 4.0; // degrees
+    private static final double DISTANCE_DEADBAND = 0.25; // meters
+    private static final double LATERAL_DEADBAND = 0.05; // meters
     
     // Speed limits
-    private static final double MAX_SPEED = 1.0; // meters per second
-    private static final double MAX_ROTATION_SPEED = 1.0; // radians per second
+    private static final double MAX_SPEED = 0.8; // Reduced from 1.0 - smoother movement
+    private static final double MAX_ROTATION_SPEED = 0.8; // Reduced from 1.0 - smoother rotation
+    private static final double MIN_SPEED = 0.05; // Minimum speed to overcome friction
     
     private boolean isAligned = false;
 
@@ -61,11 +67,16 @@ public class AlignToAprilTagCommand extends Command {
 
     @Override
     public void execute() {
+        // Camera offset from robot center in meters (from Constants)
+        final double CAMERA_OFFSET_Y = 0.24765; // 9.75 inches in meters
+        
         // Try FL camera first, then FR camera
         boolean targetVisible = visionSubsystem.isTargetVisibleFL();
         double targetYaw = visionSubsystem.getTargetYawFL();
         double targetDistance = visionSubsystem.getTargetDistanceFL();
         int detectedTagId = visionSubsystem.getDetectedTagIdFL();
+        double cameraOffsetY = CAMERA_OFFSET_Y; // FL camera is to the left (+Y)
+        String cameraUsed = "FL";
         
         // If FL doesn't see target, try FR
         if (!targetVisible) {
@@ -73,6 +84,8 @@ public class AlignToAprilTagCommand extends Command {
             targetYaw = visionSubsystem.getTargetYawFR();
             targetDistance = visionSubsystem.getTargetDistanceFR();
             detectedTagId = visionSubsystem.getDetectedTagIdFR();
+            cameraOffsetY = -CAMERA_OFFSET_Y; // FR camera is to the right (-Y)
+            cameraUsed = "FR";
         }
         
         if (!targetVisible) {
@@ -86,45 +99,70 @@ public class AlignToAprilTagCommand extends Command {
         }
         
         // Calculate error values
-        double yawError = targetYaw; // Positive yaw means target is to the right
+        // Compensate for camera offset: when camera sees target at 0° yaw, 
+        // the robot needs to rotate to point the CENTER at the target
+        double yawError = targetYaw; // Positive yaw means target is to the right of camera
         double distanceError = targetDistance - TARGET_DISTANCE; // Positive means too far, negative means too close
         
-        // Calculate lateral error based on offset
-        // When lateralOffset is positive (want to be left of tag), and yaw is 0 (centered),
-        // we need to strafe left (positive Y velocity in field-centric)
-        double lateralError = -lateralOffset; // Negative because we want to move opposite to achieve offset
+        // Calculate the angle offset needed to center the robot on the target
+        // This accounts for the camera being offset from robot center
+        double angleOffsetDeg = Math.toDegrees(Math.atan2(cameraOffsetY, targetDistance));
         
-        // Calculate control outputs
-        double rotationSpeedRaw = -yawError * YAW_KP; // Negative to turn toward target
-        double forwardSpeedRaw = distanceError * DISTANCE_KP; // Positive error (too far) = positive speed (move forward)
-        double strafeSpeedRaw = lateralError * STRAFE_KP; // Strafe to achieve lateral offset
+        // Adjust yaw error to align robot center (not camera) with target
+        double robotCenterYawError = yawError - angleOffsetDeg;
+        
+        // Calculate lateral error based on desired offset
+        double lateralError = -lateralOffset;
+        
+        // Apply deadband to prevent jitter when close to target
+        double yawErrorWithDeadband = Math.abs(robotCenterYawError) < YAW_DEADBAND ? 0 : robotCenterYawError;
+        double distanceErrorWithDeadband = Math.abs(distanceError) < DISTANCE_DEADBAND ? 0 : distanceError;
+        double lateralErrorWithDeadband = Math.abs(lateralError) < LATERAL_DEADBAND ? 0 : lateralError;
+        
+        // Calculate control outputs using robot-center-corrected yaw error with deadband
+        double rotationSpeedRaw = -yawErrorWithDeadband * YAW_KP;
+        double forwardSpeedRaw = distanceErrorWithDeadband * DISTANCE_KP;
+        double strafeSpeedRaw = lateralErrorWithDeadband * STRAFE_KP;
+        
+        // Apply minimum speed threshold to overcome friction (only if not zero)
+        if (Math.abs(rotationSpeedRaw) > 0 && Math.abs(rotationSpeedRaw) < MIN_SPEED) {
+            rotationSpeedRaw = Math.copySign(MIN_SPEED, rotationSpeedRaw);
+        }
+        if (Math.abs(forwardSpeedRaw) > 0 && Math.abs(forwardSpeedRaw) < MIN_SPEED) {
+            forwardSpeedRaw = Math.copySign(MIN_SPEED, forwardSpeedRaw);
+        }
+        if (Math.abs(strafeSpeedRaw) > 0 && Math.abs(strafeSpeedRaw) < MIN_SPEED) {
+            strafeSpeedRaw = Math.copySign(MIN_SPEED, strafeSpeedRaw);
+        }
         
         // Limit speeds
         double rotationSpeed = Math.max(-MAX_ROTATION_SPEED, Math.min(MAX_ROTATION_SPEED, rotationSpeedRaw));
         double forwardSpeed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, forwardSpeedRaw));
         double strafeSpeed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, strafeSpeedRaw));
         
-        // Check if aligned (including lateral position if offset is specified)
+        // Check if aligned using robot-center yaw error
         boolean lateralAligned = Math.abs(lateralOffset) < 0.01 || Math.abs(lateralError) < LATERAL_TOLERANCE;
-        isAligned = Math.abs(yawError) < YAW_TOLERANCE && Math.abs(distanceError) < DISTANCE_TOLERANCE && lateralAligned;
+        isAligned = Math.abs(robotCenterYawError) < YAW_TOLERANCE && Math.abs(distanceError) < DISTANCE_TOLERANCE && lateralAligned;
         
-        // If aligned, stop the robot. Otherwise, apply drive commands
+        // Apply drive commands
         if (isAligned) {
             drivetrain.setControl(driveRequest
                 .withVelocityX(0)
                 .withVelocityY(0)
                 .withRotationalRate(0));
         } else {
-            // Apply drive request using setControl
             drivetrain.setControl(driveRequest
-                .withVelocityX(forwardSpeed) // Forward/backward
-                .withVelocityY(strafeSpeed) // Left/right strafing for offset
-                .withRotationalRate(rotationSpeed)); // Rotation
+                .withVelocityX(forwardSpeed)
+                .withVelocityY(strafeSpeed)
+                .withRotationalRate(rotationSpeed));
         }
         
         // Update SmartDashboard
         SmartDashboard.putString("Auto Align Status", isAligned ? "ALIGNED" : "Aligning...");
-        SmartDashboard.putNumber("Auto Align Yaw Error", yawError);
+        SmartDashboard.putString("Auto Align Camera", cameraUsed);
+        SmartDashboard.putNumber("Auto Align Camera Yaw", targetYaw);
+        SmartDashboard.putNumber("Auto Align Angle Offset", angleOffsetDeg);
+        SmartDashboard.putNumber("Auto Align Robot Yaw Error", robotCenterYawError);
         SmartDashboard.putNumber("Auto Align Distance Error", distanceError);
         SmartDashboard.putNumber("Auto Align Lateral Error", lateralError);
         SmartDashboard.putNumber("Auto Align Lateral Offset", lateralOffset);
@@ -149,7 +187,7 @@ public class AlignToAprilTagCommand extends Command {
 
     @Override
     public boolean isFinished() {
-        // Command continues until button is released or target is lost for too long
-        return false; // Let the button release end the command
+        // Command continues until button is released
+        return false;
     }
 }

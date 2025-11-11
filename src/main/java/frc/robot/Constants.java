@@ -31,6 +31,10 @@ import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.util.Units;
 
+import com.pathplanner.lib.config.PIDConstants;
+import com.pathplanner.lib.config.RobotConfig;
+import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+
 public class Constants {
   public static class OperatorConstants {
     public static final int kDriverControllerPort = 0;
@@ -41,9 +45,25 @@ public class Constants {
         // or "Arducam" or whatever your camera is named
         // Cam mounted facing forward, half a meter forward of center, half a meter up from center,
         // pitched upward.
-        private static final double camPitch = Units.degreesToRadians(30.0);
-        public static final Transform3d kRobotToCam =
-                new Transform3d(new Translation3d(0.5, 0.0, 0.5), new Rotation3d(0, -camPitch, 0));
+        private static final double camPitch = Units.degreesToRadians(0);
+        
+        public static final Transform3d kRobotToCamFR =
+                new Transform3d(
+                        new Translation3d(
+                                Units.inchesToMeters(2.5), // Forward
+                                Units.inchesToMeters(-9.75), // Left
+                                Units.inchesToMeters(10.25) // Up
+                        ),
+                                new Rotation3d(0, -camPitch, Units.degreesToRadians(12)));
+
+        public static final Transform3d kRobotToCamFL =
+                new Transform3d(
+                        new Translation3d(
+                                Units.inchesToMeters(2.5), // Forward
+                                Units.inchesToMeters(9.75), // Left
+                                Units.inchesToMeters(10.25) // Up
+                        ),        
+                                new Rotation3d(0, -camPitch, -Units.degreesToRadians(12)));
 
         // The layout of the AprilTags on the field
         public static final AprilTagFieldLayout kTagLayout =
@@ -139,5 +159,21 @@ public class Constants {
         public static final double kSteerKP = 20;
         public static final double kSteerKI = 0;
         public static final double kSteerKD = 0.25;
+    }
+
+    public static class PathPlanner {
+        // PID constants for path following (translation)
+        public static final PIDConstants TRANSLATION_PID = new PIDConstants(5.0, 0.0, 0.0);
+        
+        // PID constants for path following (rotation)  
+        public static final PIDConstants ROTATION_PID = new PIDConstants(5.0, 0.0, 0.0);
+        
+        // Period for path following updates (seconds)
+        public static final double PATH_FOLLOWING_PERIOD = 0.02; // 20ms / 50Hz
+        
+        // Replanning configuration
+        public static final boolean ENABLE_REPLANNING = true;
+        public static final double REPLANNING_TOTAL_ERROR_THRESHOLD = 3.0; // meters
+        public static final double REPLANNING_ERROR_SPIKE_THRESHOLD = 2.0; // meters
     }
 }

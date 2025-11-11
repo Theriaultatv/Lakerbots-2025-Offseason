@@ -4,13 +4,14 @@ import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import org.photonvision.PhotonCamera;
 import org.photonvision.targeting.PhotonTrackedTarget;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import frc.robot.Constants;
 import java.util.List;
 
 public class VisionSubsystem extends SubsystemBase {
     private final PhotonCamera cameraFL;
     private final PhotonCamera cameraFR;
-    
+
     // FL Camera data
     private double targetYawFL = 0.0;
     private double targetPitchFL = 0.0;
@@ -19,7 +20,7 @@ public class VisionSubsystem extends SubsystemBase {
     private int detectedTagIdFL = -1;
     private boolean targetVisibleFL = false;
     private int totalTargetsFL = 0;
-    
+
     // FR Camera data
     private double targetYawFR = 0.0;
     private double targetPitchFR = 0.0;
@@ -29,19 +30,88 @@ public class VisionSubsystem extends SubsystemBase {
     private boolean targetVisibleFR = false;
     private int totalTargetsFR = 0;
 
-    private static final int DESIRED_TAG_ID = 14; // Primary AprilTag ID to track
+    private int selectedTagId = 14; // Default tag ID
+
+    // SmartDashboard chooser for tag selection
+    private final SendableChooser<Integer> tagIdChooser;
 
     public VisionSubsystem() {
         // Initialize both cameras with names from Constants
         cameraFL = new PhotonCamera(Constants.Vision.kCameraNameFL);
         cameraFR = new PhotonCamera(Constants.Vision.kCameraNameFR);
+
+        // Set up tag ID chooser
+        tagIdChooser = new SendableChooser<>();
+        tagIdChooser.setDefaultOption("Tag 14", 14);
+        tagIdChooser.addOption("Tag 1", 1);
+        tagIdChooser.addOption("Tag 2", 2);
+        tagIdChooser.addOption("Tag 3", 3);
+        tagIdChooser.addOption("Tag 4", 4);
+        tagIdChooser.addOption("Tag 5", 5);
+        tagIdChooser.addOption("Tag 6", 6);
+        tagIdChooser.addOption("Tag 7", 7);
+        tagIdChooser.addOption("Tag 8", 8);
+        tagIdChooser.addOption("Tag 9", 9);
+        tagIdChooser.addOption("Tag 10", 10);
+        tagIdChooser.addOption("Tag 11", 11);
+        tagIdChooser.addOption("Tag 12", 12);
+        tagIdChooser.addOption("Tag 13", 13);
+        tagIdChooser.addOption("Tag 15", 15);
+        tagIdChooser.addOption("Tag 16", 16);
+        SmartDashboard.putData("Vision Tag Selector", tagIdChooser);
     }
 
     @Override
     public void periodic() {
+        // Update selected tag ID from chooser
+        selectedTagId = tagIdChooser.getSelected();
+
         // Process results for each camera independently
         processCameraFLResults();
         processCameraFRResults();
+        
+        // Publish combined vision status for easy viewing
+        publishCombinedStatus();
+    }
+    
+    /**
+     * Publishes combined vision status for easy dashboard viewing
+     */
+    private void publishCombinedStatus() {
+        // Show which tag we're looking for
+        SmartDashboard.putNumber("Target Tag ID", selectedTagId);
+        
+        // Show detected tags from both cameras
+        String detectedTags = "";
+        if (targetVisibleFL && targetVisibleFR) {
+            detectedTags = "FL: Tag " + detectedTagIdFL + " | FR: Tag " + detectedTagIdFR;
+        } else if (targetVisibleFL) {
+            detectedTags = "FL: Tag " + detectedTagIdFL;
+        } else if (targetVisibleFR) {
+            detectedTags = "FR: Tag " + detectedTagIdFR;
+        } else {
+            detectedTags = "No Tags Detected";
+        }
+        SmartDashboard.putString("Detected Tags", detectedTags);
+        
+        // Show if target tag is visible
+        boolean targetFound = (targetVisibleFL && detectedTagIdFL == selectedTagId) || 
+                             (targetVisibleFR && detectedTagIdFR == selectedTagId);
+        SmartDashboard.putBoolean("Target Tag Found", targetFound);
+        
+        // Show which camera sees the target
+        String cameraSeeing = "";
+        if (targetVisibleFL && detectedTagIdFL == selectedTagId && 
+            targetVisibleFR && detectedTagIdFR == selectedTagId) {
+            cameraSeeing = "Both Cameras";
+        } else if (targetVisibleFL && detectedTagIdFL == selectedTagId) {
+            cameraSeeing = "Front-Left Camera";
+        } else if (targetVisibleFR && detectedTagIdFR == selectedTagId) {
+            cameraSeeing = "Front-Right Camera";
+        } else {
+            cameraSeeing = "None";
+        }
+        SmartDashboard.putString("Target Visible On", cameraSeeing);
     }
 
     private void processCameraFLResults() {
@@ -61,36 +131,28 @@ public class VisionSubsystem extends SubsystemBase {
                 List<PhotonTrackedTarget> targets = result.getTargets();
                 totalTargetsFL = targets.size();
                 
-                // First, try to find the desired tag
-                PhotonTrackedTarget bestTarget = null;
+                // ONLY find the selected tag - do not use fallback
+                PhotonTrackedTarget selectedTarget = null;
                 for (PhotonTrackedTarget target : targets) {
-                    if (target.getFiducialId() == DESIRED_TAG_ID) {
-                        bestTarget = target;
+                    if (target.getFiducialId() == selectedTagId) {
+                        selectedTarget = target;
                         break;
                     }
                 }
                 
-                // If desired tag not found, use the best target (usually closest/largest)
-                if (bestTarget == null && !targets.isEmpty()) {
-                    bestTarget = targets.get(0);
-                }
-                
-                // Extract data from best target
-                if (bestTarget != null) {
+                // Extract data ONLY if we found the selected tag
+                if (selectedTarget != null) {
                     targetVisibleFL = true;
-                    detectedTagIdFL = bestTarget.getFiducialId();
-                    targetYawFL = bestTarget.getYaw();
-                    targetPitchFL = bestTarget.getPitch();
-                    targetAreaFL = bestTarget.getArea();
+                    detectedTagIdFL = selectedTarget.getFiducialId();
+                    targetYawFL = selectedTarget.getYaw();
+                    targetPitchFL = selectedTarget.getPitch();
+                    targetAreaFL = selectedTarget.getArea();
                     
                     // Calculate approximate distance using target area (rough estimation)
                     // This is a simplified calculation - adjust based on your camera/tag setup
                     if (targetAreaFL > 0) {
                         targetDistanceFL = Math.sqrt(1.0 / targetAreaFL) * 10.0; // Rough approximation
                     }
-                    
-                    // If target has pose ambiguity, you can access it
-                    // double ambiguity = bestTarget.getPoseAmbiguity();
                 }
                 break; // Use most recent result
             }
@@ -107,7 +169,7 @@ public class VisionSubsystem extends SubsystemBase {
         SmartDashboard.putBoolean("FL Camera Connected", cameraFL.isConnected());
         
         // Legacy outputs for compatibility
-        SmartDashboard.putNumber("AprilTag " + DESIRED_TAG_ID + " Yaw FL", targetYawFL);
+        SmartDashboard.putNumber("AprilTag " + selectedTagId + " Yaw FL", targetYawFL);
         SmartDashboard.putBoolean("Vision Target Visible FL", targetVisibleFL);
     }
 
@@ -128,27 +190,22 @@ public class VisionSubsystem extends SubsystemBase {
                 List<PhotonTrackedTarget> targets = result.getTargets();
                 totalTargetsFR = targets.size();
                 
-                // First, try to find the desired tag
-                PhotonTrackedTarget bestTarget = null;
+                // ONLY find the selected tag - do not use fallback
+                PhotonTrackedTarget selectedTarget = null;
                 for (PhotonTrackedTarget target : targets) {
-                    if (target.getFiducialId() == DESIRED_TAG_ID) {
-                        bestTarget = target;
+                    if (target.getFiducialId() == selectedTagId) {
+                        selectedTarget = target;
                         break;
                     }
                 }
                 
-                // If desired tag not found, use the best target (usually closest/largest)
-                if (bestTarget == null && !targets.isEmpty()) {
-                    bestTarget = targets.get(0);
-                }
-                
-                // Extract data from best target
-                if (bestTarget != null) {
+                // Extract data ONLY if we found the selected tag
+                if (selectedTarget != null) {
                     targetVisibleFR = true;
-                    detectedTagIdFR = bestTarget.getFiducialId();
-                    targetYawFR = bestTarget.getYaw();
-                    targetPitchFR = bestTarget.getPitch();
-                    targetAreaFR = bestTarget.getArea();
+                    detectedTagIdFR = selectedTarget.getFiducialId();
+                    targetYawFR = selectedTarget.getYaw();
+                    targetPitchFR = selectedTarget.getPitch();
+                    targetAreaFR = selectedTarget.getArea();
                     
                     // Calculate approximate distance using target area (rough estimation)
                     if (targetAreaFR > 0) {
@@ -170,7 +227,7 @@ public class VisionSubsystem extends SubsystemBase {
         SmartDashboard.putBoolean("FR Camera Connected", cameraFR.isConnected());
         
         // Legacy outputs for compatibility
-        SmartDashboard.putNumber("AprilTag " + DESIRED_TAG_ID + " Yaw FR", targetYawFR);
+        SmartDashboard.putNumber("AprilTag " + selectedTagId + " Yaw FR", targetYawFR);
         SmartDashboard.putBoolean("Vision Target Visible FR", targetVisibleFR);
     }
 
@@ -206,5 +263,10 @@ public class VisionSubsystem extends SubsystemBase {
     
     public double getTargetDistanceFR() {
         return targetDistanceFR;
+    }
+
+    // Public getter for selected tag ID
+    public int getSelectedTagId() {
+        return selectedTagId;
     }
 }

@@ -39,6 +39,9 @@ public class Robot extends TimedRobot {
     @Override
     public void robotPeriodic() {
         CommandScheduler.getInstance().run();
+        
+        // Update Field2D with current robot pose and vision targets
+        m_robotContainer.updateField2d();
     }
 
     @Override
