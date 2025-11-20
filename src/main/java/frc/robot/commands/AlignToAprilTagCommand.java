@@ -1,6 +1,7 @@
 package frc.robot.commands;
 
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.subsystems.CommandSwerveDrivetrain;
 import frc.robot.subsystems.VisionSubsystem;
@@ -17,8 +18,8 @@ public class AlignToAprilTagCommand extends Command {
     private static final double DISTANCE_KP = 0.25; // Reduced from 0.5 - smoother approach
     private static final double STRAFE_KP = 0.015; // Reduced from 0.04 - less aggressive strafe
     
-    // Target distance in meters
-    private static final double TARGET_DISTANCE = 7.0;
+    // Target distance in meters (5 meters directly in front of tag)
+    private static final double TARGET_DISTANCE = 5.0;
     
     // Tolerance values (wider to prevent jitter)
     private static final double YAW_TOLERANCE = 3.0; // Increased from 2.0 degrees
@@ -35,7 +36,12 @@ public class AlignToAprilTagCommand extends Command {
     private static final double MAX_ROTATION_SPEED = 0.8; // Reduced from 1.0 - smoother rotation
     private static final double MIN_SPEED = 0.05; // Minimum speed to overcome friction
     
+    // Timeout for no target visible
+    private static final double NO_TARGET_TIMEOUT = 2.0; // seconds
+    
     private boolean isAligned = false;
+    private boolean hasSeenTarget = false;
+    private final Timer noTargetTimer = new Timer();
 
     /**
      * Creates an AlignToAprilTagCommand with no lateral offset (center alignment)
@@ -62,7 +68,10 @@ public class AlignToAprilTagCommand extends Command {
     @Override
     public void initialize() {
         isAligned = false;
+        hasSeenTarget = false;
+        noTargetTimer.restart();
         SmartDashboard.putBoolean("Auto Align Active", true);
+        System.out.println("AlignToAprilTagCommand: Starting alignment");
     }
 
     @Override
@@ -95,8 +104,13 @@ public class AlignToAprilTagCommand extends Command {
                 .withVelocityY(0)
                 .withRotationalRate(0));
             SmartDashboard.putString("Auto Align Status", "No Target Visible");
+            System.out.println("AlignToAprilTagCommand: No target visible - waiting...");
             return;
         }
+        
+        // Target is visible, reset timer and mark that we've seen a target
+        hasSeenTarget = true;
+        noTargetTimer.restart();
         
         // Calculate error values
         // Compensate for camera offset: when camera sees target at 0° yaw, 
@@ -111,18 +125,15 @@ public class AlignToAprilTagCommand extends Command {
         // Adjust yaw error to align robot center (not camera) with target
         double robotCenterYawError = yawError - angleOffsetDeg;
         
-        // Calculate lateral error based on desired offset
-        double lateralError = -lateralOffset;
-        
         // Apply deadband to prevent jitter when close to target
         double yawErrorWithDeadband = Math.abs(robotCenterYawError) < YAW_DEADBAND ? 0 : robotCenterYawError;
         double distanceErrorWithDeadband = Math.abs(distanceError) < DISTANCE_DEADBAND ? 0 : distanceError;
-        double lateralErrorWithDeadband = Math.abs(lateralError) < LATERAL_DEADBAND ? 0 : lateralError;
         
         // Calculate control outputs using robot-center-corrected yaw error with deadband
         double rotationSpeedRaw = -yawErrorWithDeadband * YAW_KP;
         double forwardSpeedRaw = distanceErrorWithDeadband * DISTANCE_KP;
-        double strafeSpeedRaw = lateralErrorWithDeadband * STRAFE_KP;
+        // No strafe - we want to align directly in front of the tag
+        double strafeSpeedRaw = 0.0;
         
         // Apply minimum speed threshold to overcome friction (only if not zero)
         if (Math.abs(rotationSpeedRaw) > 0 && Math.abs(rotationSpeedRaw) < MIN_SPEED) {
@@ -141,8 +152,7 @@ public class AlignToAprilTagCommand extends Command {
         double strafeSpeed = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, strafeSpeedRaw));
         
         // Check if aligned using robot-center yaw error
-        boolean lateralAligned = Math.abs(lateralOffset) < 0.01 || Math.abs(lateralError) < LATERAL_TOLERANCE;
-        isAligned = Math.abs(robotCenterYawError) < YAW_TOLERANCE && Math.abs(distanceError) < DISTANCE_TOLERANCE && lateralAligned;
+        isAligned = Math.abs(robotCenterYawError) < YAW_TOLERANCE && Math.abs(distanceError) < DISTANCE_TOLERANCE;
         
         // Apply drive commands
         if (isAligned) {
@@ -164,8 +174,6 @@ public class AlignToAprilTagCommand extends Command {
         SmartDashboard.putNumber("Auto Align Angle Offset", angleOffsetDeg);
         SmartDashboard.putNumber("Auto Align Robot Yaw Error", robotCenterYawError);
         SmartDashboard.putNumber("Auto Align Distance Error", distanceError);
-        SmartDashboard.putNumber("Auto Align Lateral Error", lateralError);
-        SmartDashboard.putNumber("Auto Align Lateral Offset", lateralOffset);
         SmartDashboard.putNumber("Auto Align Target Distance", targetDistance);
         SmartDashboard.putNumber("Auto Align Detected Tag", detectedTagId);
         SmartDashboard.putNumber("Auto Align Forward Speed", forwardSpeed);
@@ -187,7 +195,18 @@ public class AlignToAprilTagCommand extends Command {
 
     @Override
     public boolean isFinished() {
-        // Command continues until button is released
+        // Command finishes when robot is aligned
+        if (isAligned) {
+            System.out.println("AlignToAprilTagCommand: Alignment complete!");
+            return true;
+        }
+        
+        // If we've never seen a target and timeout has elapsed, finish with failure
+        if (!hasSeenTarget && noTargetTimer.hasElapsed(NO_TARGET_TIMEOUT)) {
+            System.out.println("AlignToAprilTagCommand: No target found after " + NO_TARGET_TIMEOUT + " seconds - canceling");
+            return true;
+        }
+        
         return false;
     }
 }

@@ -28,9 +28,9 @@ import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 
 import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.Filesystem;
+//import edu.wpi.first.wpilibj.Filesystem;
 
-import java.io.File;
+//import java.io.File;
 
 //import frc.robot.Constants.OperatorConstants;
 //import frc.robot.commands.Autos;
@@ -201,6 +201,17 @@ public class RobotContainer {
             e.printStackTrace();
         }
         
+        // Add Vision Center Auto
+        try {
+            Command visionCenterAuto = new PathPlannerAuto("Vision Center");
+            chooser.addOption("Vision Center", visionCenterAuto);
+            System.out.println("✓ Successfully loaded: Vision Center");
+        } catch (Exception e) {
+            System.err.println("✗ Failed to load Vision Center auto:");
+            System.err.println("  Error: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
         // Add more autos here as you create them in PathPlanner
         // Just copy the pattern above:
         // try {
@@ -227,8 +238,11 @@ public class RobotContainer {
      */
     private void registerNamedCommands() {
         // Example: Register a command to align to AprilTag
-        NamedCommands.registerCommand("AlignToTag", 
+        NamedCommands.registerCommand("AlignToAprilTagCommand", 
             new AlignToAprilTagCommand(drivetrain, visionSubsystem, 0.0));
+
+        NamedCommands.registerCommand("RunPumpkinCommand",
+            new RunPumpkinCommand(pumpkinSubsystem));
         
         // Example: Register a command to print a message
         NamedCommands.registerCommand("PrintMessage", 
@@ -271,12 +285,12 @@ public class RobotContainer {
         // Reset the field-centric heading when start button is pressed
         joystick.start().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
 
-        // Auto-align to AprilTag commands:
-        // Left bumper: Align 1 foot (0.3048 meters) to the LEFT of the tag
-        joystick.leftBumper().whileTrue(new AlignToAprilTagCommand(drivetrain, visionSubsystem, 0.3048));
-        
-        // Right bumper: Align 1 foot (0.3048 meters) to the RIGHT of the tag
-        joystick.rightBumper().whileTrue(new AlignToAprilTagCommand(drivetrain, visionSubsystem, -0.3048));
+        // Auto-align to AprilTag command with pumpkin motor sequence:
+        // Left bumper: Align to center of tag, then run pumpkin motor for 3 seconds
+        joystick.leftBumper().onTrue(
+            new AlignToAprilTagCommand(drivetrain, visionSubsystem, 0.0)
+                .andThen(new RunPumpkinCommand(pumpkinSubsystem).withTimeout(Constants.Pumpkin.kRunDuration))
+        );
 
         // Y button: Run Pumpkin motor at 2V for 4 seconds
         joystick.y().onTrue(new RunPumpkinCommand(pumpkinSubsystem).withTimeout(Constants.Pumpkin.kRunDuration));

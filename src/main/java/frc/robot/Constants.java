@@ -32,8 +32,8 @@ import edu.wpi.first.math.numbers.N3;
 import edu.wpi.first.math.util.Units;
 
 import com.pathplanner.lib.config.PIDConstants;
-import com.pathplanner.lib.config.RobotConfig;
-import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+//import com.pathplanner.lib.config.RobotConfig;
+//import com.pathplanner.lib.controllers.PPHolonomicDriveController;
 
 public class Constants {
   public static class OperatorConstants {
@@ -188,6 +188,6 @@ public class Constants {
         public static final double kVoltageOutput = 2.0;
         
         // Duration to run motor (seconds)
-        public static final double kRunDuration = 4.0;
+        public static final double kRunDuration = 3.0;
     }
 }

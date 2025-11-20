@@ -58,6 +58,14 @@ public class VisionSubsystem extends SubsystemBase {
         tagIdChooser.addOption("Tag 13", 13);
         tagIdChooser.addOption("Tag 15", 15);
         tagIdChooser.addOption("Tag 16", 16);
+        tagIdChooser.addOption("Tag 17", 17);
+        tagIdChooser.addOption("Tag 18", 18);
+        tagIdChooser.addOption("Tag 19", 19);
+        tagIdChooser.addOption("Tag 20", 20);
+        tagIdChooser.addOption("Tag 21", 21);
+        tagIdChooser.addOption("Tag 22", 22);
+        tagIdChooser.addOption("Tag 23", 23);
+        tagIdChooser.addOption("Tag 24", 24);
         SmartDashboard.putData("Vision Tag Selector", tagIdChooser);
     }
 
