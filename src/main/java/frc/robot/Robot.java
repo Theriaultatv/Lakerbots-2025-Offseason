@@ -40,6 +40,9 @@ public class Robot extends TimedRobot {
     public void robotPeriodic() {
         CommandScheduler.getInstance().run();
         
+        // Update vision measurements for pose estimation
+        m_robotContainer.updateVisionMeasurements();
+        
         // Update Field2D with current robot pose and vision targets
         m_robotContainer.updateField2d();
     }

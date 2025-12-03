@@ -2,15 +2,28 @@ package frc.robot.subsystems;
 
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import org.photonvision.PhotonCamera;
+import org.photonvision.PhotonPoseEstimator;
+import org.photonvision.PhotonPoseEstimator.PoseStrategy;
 import org.photonvision.targeting.PhotonTrackedTarget;
+import org.photonvision.EstimatedRobotPose;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.math.geometry.Pose2d;
 import frc.robot.Constants;
 import java.util.List;
+import java.util.Optional;
 
 public class VisionSubsystem extends SubsystemBase {
     private final PhotonCamera cameraFL;
     private final PhotonCamera cameraFR;
+    
+    // Pose estimators for each camera
+    private final PhotonPoseEstimator poseEstimatorFL;
+    private final PhotonPoseEstimator poseEstimatorFR;
+    
+    // Latest estimated poses
+    private Optional<EstimatedRobotPose> latestEstimatedPoseFL = Optional.empty();
+    private Optional<EstimatedRobotPose> latestEstimatedPoseFR = Optional.empty();
 
     // FL Camera data
     private double targetYawFL = 0.0;
@@ -39,6 +52,22 @@ public class VisionSubsystem extends SubsystemBase {
         // Initialize both cameras with names from Constants
         cameraFL = new PhotonCamera(Constants.Vision.kCameraNameFL);
         cameraFR = new PhotonCamera(Constants.Vision.kCameraNameFR);
+        
+        // Initialize pose estimators with MULTI_TAG_PNP_ON_COPROCESSOR strategy
+        // This uses multiple tags when available for better accuracy
+        poseEstimatorFL = new PhotonPoseEstimator(
+            Constants.Vision.kTagLayout,
+            PoseStrategy.MULTI_TAG_PNP_ON_COPROCESSOR,
+            Constants.Vision.kRobotToCamFL
+        );
+        poseEstimatorFL.setMultiTagFallbackStrategy(PoseStrategy.LOWEST_AMBIGUITY);
+        
+        poseEstimatorFR = new PhotonPoseEstimator(
+            Constants.Vision.kTagLayout,
+            PoseStrategy.MULTI_TAG_PNP_ON_COPROCESSOR,
+            Constants.Vision.kRobotToCamFR
+        );
+        poseEstimatorFR.setMultiTagFallbackStrategy(PoseStrategy.LOWEST_AMBIGUITY);
 
         // Set up tag ID chooser
         tagIdChooser = new SendableChooser<>();
@@ -74,12 +103,103 @@ public class VisionSubsystem extends SubsystemBase {
         // Update selected tag ID from chooser
         selectedTagId = tagIdChooser.getSelected();
 
+        // Update pose estimates for both cameras
+        updatePoseEstimates();
+
         // Process results for each camera independently
         processCameraFLResults();
         processCameraFRResults();
         
         // Publish combined vision status for easy viewing
         publishCombinedStatus();
+        
+        // Publish pose estimation data to dashboard
+        publishPoseEstimationData();
+    }
+    
+    /**
+     * Updates pose estimates from both cameras
+     */
+    private void updatePoseEstimates() {
+        // Update FL camera pose estimate
+        var resultFL = cameraFL.getLatestResult();
+        if (resultFL.hasTargets()) {
+            latestEstimatedPoseFL = poseEstimatorFL.update(resultFL);
+        } else {
+            latestEstimatedPoseFL = Optional.empty();
+        }
+        
+        // Update FR camera pose estimate
+        var resultFR = cameraFR.getLatestResult();
+        if (resultFR.hasTargets()) {
+            latestEstimatedPoseFR = poseEstimatorFR.update(resultFR);
+        } else {
+            latestEstimatedPoseFR = Optional.empty();
+        }
+    }
+    
+    /**
+     * Publishes pose estimation data to SmartDashboard for Elastic dashboard
+     */
+    private void publishPoseEstimationData() {
+        // FL Camera pose estimation
+        if (latestEstimatedPoseFL.isPresent()) {
+            EstimatedRobotPose estimatedPose = latestEstimatedPoseFL.get();
+            Pose2d pose = estimatedPose.estimatedPose.toPose2d();
+            
+            SmartDashboard.putBoolean("Vision/FL/Pose Valid", true);
+            SmartDashboard.putNumber("Vision/FL/Pose X", pose.getX());
+            SmartDashboard.putNumber("Vision/FL/Pose Y", pose.getY());
+            SmartDashboard.putNumber("Vision/FL/Pose Rotation", pose.getRotation().getDegrees());
+            SmartDashboard.putNumber("Vision/FL/Pose Timestamp", estimatedPose.timestampSeconds);
+            SmartDashboard.putNumber("Vision/FL/Tags Used", estimatedPose.targetsUsed.size());
+            
+            // Publish tag IDs used
+            StringBuilder tagIds = new StringBuilder();
+            for (var target : estimatedPose.targetsUsed) {
+                if (tagIds.length() > 0) tagIds.append(", ");
+                tagIds.append(target.getFiducialId());
+            }
+            SmartDashboard.putString("Vision/FL/Tags Used IDs", tagIds.toString());
+        } else {
+            SmartDashboard.putBoolean("Vision/FL/Pose Valid", false);
+        }
+        
+        // FR Camera pose estimation
+        if (latestEstimatedPoseFR.isPresent()) {
+            EstimatedRobotPose estimatedPose = latestEstimatedPoseFR.get();
+            Pose2d pose = estimatedPose.estimatedPose.toPose2d();
+            
+            SmartDashboard.putBoolean("Vision/FR/Pose Valid", true);
+            SmartDashboard.putNumber("Vision/FR/Pose X", pose.getX());
+            SmartDashboard.putNumber("Vision/FR/Pose Y", pose.getY());
+            SmartDashboard.putNumber("Vision/FR/Pose Rotation", pose.getRotation().getDegrees());
+            SmartDashboard.putNumber("Vision/FR/Pose Timestamp", estimatedPose.timestampSeconds);
+            SmartDashboard.putNumber("Vision/FR/Tags Used", estimatedPose.targetsUsed.size());
+            
+            // Publish tag IDs used
+            StringBuilder tagIds = new StringBuilder();
+            for (var target : estimatedPose.targetsUsed) {
+                if (tagIds.length() > 0) tagIds.append(", ");
+                tagIds.append(target.getFiducialId());
+            }
+            SmartDashboard.putString("Vision/FR/Tags Used IDs", tagIds.toString());
+        } else {
+            SmartDashboard.putBoolean("Vision/FR/Pose Valid", false);
+        }
+        
+        // Combined status
+        boolean anyPoseValid = latestEstimatedPoseFL.isPresent() || latestEstimatedPoseFR.isPresent();
+        SmartDashboard.putBoolean("Vision/Any Pose Valid", anyPoseValid);
+        
+        int totalTagsUsed = 0;
+        if (latestEstimatedPoseFL.isPresent()) {
+            totalTagsUsed += latestEstimatedPoseFL.get().targetsUsed.size();
+        }
+        if (latestEstimatedPoseFR.isPresent()) {
+            totalTagsUsed += latestEstimatedPoseFR.get().targetsUsed.size();
+        }
+        SmartDashboard.putNumber("Vision/Total Tags Used", totalTagsUsed);
     }
     
     /**
@@ -276,5 +396,31 @@ public class VisionSubsystem extends SubsystemBase {
     // Public getter for selected tag ID
     public int getSelectedTagId() {
         return selectedTagId;
+    }
+    
+    /**
+     * Gets the latest estimated robot pose from the FL camera
+     * @return Optional containing the estimated pose, or empty if no estimate available
+     */
+    public Optional<EstimatedRobotPose> getEstimatedGlobalPoseFL() {
+        return latestEstimatedPoseFL;
+    }
+    
+    /**
+     * Gets the latest estimated robot pose from the FR camera
+     * @return Optional containing the estimated pose, or empty if no estimate available
+     */
+    public Optional<EstimatedRobotPose> getEstimatedGlobalPoseFR() {
+        return latestEstimatedPoseFR;
+    }
+    
+    /**
+     * Sets the reference pose for the pose estimators.
+     * This should be called when resetting odometry.
+     * @param pose The new reference pose
+     */
+    public void setReferencePose(Pose2d pose) {
+        poseEstimatorFL.setReferencePose(pose);
+        poseEstimatorFR.setReferencePose(pose);
     }
 }

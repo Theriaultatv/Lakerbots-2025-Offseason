@@ -51,3 +51,16 @@ The command now prints console messages to help diagnose issues:
 - Confirm pumpkin motor automatically runs for 3 seconds after alignment
 - Ensure sequence completes without manual intervention
 - Check console output for debug messages
+
+
+## Friday Agenda:
+- Understand where we are today
+- Discuss overall strategy with Vision
+   - Tag Centric or Field Centric?
+- How to get our drivetrian to drive to specific field coordinates
+- Pose Estimation -- How to add vision adjustments to pose estimation
+   - Play around with filtering and statistics
+   - Learn about how 2 or more cameras get integrated to output a correct pose
+- Auto vs. Tele
+   - Auto -- PathPlanner -> Vision 
+   - Tele -- How to select tag to align to?

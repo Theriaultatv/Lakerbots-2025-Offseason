@@ -43,6 +43,7 @@ import frc.robot.subsystems.CommandSwerveDrivetrain;
 import frc.robot.subsystems.VisionSubsystem;
 import frc.robot.subsystems.PumpkinSubsystem;
 import frc.robot.commands.AlignToAprilTagCommand;
+import frc.robot.commands.AlignToPoseCommand;
 import frc.robot.commands.RunPumpkinCommand;
 
 import java.util.Optional;
@@ -85,11 +86,31 @@ public class RobotContainer {
         // Publish auto chooser to SmartDashboard for Elastic dashboard
         SmartDashboard.putData("Auto Chooser", autoChooser);
         
+        // Initialize Target Pose dashboard values
+        initializeTargetPoseDashboard();
+        
         configureBindings();
         
         // Publish Field2D to SmartDashboard for Elastic dashboard
         // Using "Field2d" as the key name for better Elastic compatibility
         SmartDashboard.putData("Field2d", field2d);
+    }
+    
+    /**
+     * Initializes the Target Pose dashboard values.
+     * These can be modified on the Elastic dashboard to set custom target poses.
+     */
+    private void initializeTargetPoseDashboard() {
+        // Set default target pose: (6.66, 4.36, -177.5)
+        SmartDashboard.putNumber("Target Pose/X", 6.66);
+        SmartDashboard.putNumber("Target Pose/Y", 4.36);
+        SmartDashboard.putNumber("Target Pose/Heading", -177.5);
+        
+        System.out.println("Target Pose dashboard initialized:");
+        System.out.println("  Default X: 6.66 meters");
+        System.out.println("  Default Y: 4.36 meters");
+        System.out.println("  Default Heading: -177.5 degrees");
+        System.out.println("You can modify these values on the Elastic dashboard");
     }
     
     /**
@@ -283,7 +304,14 @@ public class RobotContainer {
         joystick.back().and(joystick.x()).whileTrue(drivetrain.sysIdDynamic(Direction.kReverse));
 
         // Reset the field-centric heading when start button is pressed
-        joystick.start().onTrue(drivetrain.runOnce(() -> drivetrain.seedFieldCentric()));
+        joystick.start().onTrue(drivetrain.runOnce(() -> {
+            drivetrain.seedFieldCentric();
+            // Also update vision pose estimators with the new pose
+            Pose2d currentPose = drivetrain.getState().Pose;
+            visionSubsystem.setReferencePose(currentPose);
+            SmartDashboard.putString("Field-Centric Status", "Reset at: " + System.currentTimeMillis());
+            System.out.println("Field-centric heading reset! Current pose: " + currentPose);
+        }));
 
         // Auto-align to AprilTag command with pumpkin motor sequence:
         // Left bumper: Align to center of tag, then run pumpkin motor for 3 seconds
@@ -292,8 +320,8 @@ public class RobotContainer {
                 .andThen(new RunPumpkinCommand(pumpkinSubsystem).withTimeout(Constants.Pumpkin.kRunDuration))
         );
 
-        // Y button: Run Pumpkin motor at 2V for 4 seconds
-        joystick.y().onTrue(new RunPumpkinCommand(pumpkinSubsystem).withTimeout(Constants.Pumpkin.kRunDuration));
+        // Right bumper: Drive to target pose (reads from dashboard)
+        joystick.rightBumper().onTrue(new AlignToPoseCommand(drivetrain));
 
         drivetrain.registerTelemetry(logger::telemeterize);
     }
@@ -309,6 +337,60 @@ public class RobotContainer {
         
         // Update AprilTag visualization based on detected tags
         updateAprilTagVisualization();
+    }
+    
+    /**
+     * Updates the drivetrain's pose estimator with vision measurements.
+     * This should be called periodically (e.g., from Robot.robotPeriodic()).
+     */
+    public void updateVisionMeasurements() {
+        // Process FL camera vision measurement
+        var poseFL = visionSubsystem.getEstimatedGlobalPoseFL();
+        if (poseFL.isPresent()) {
+            var estimatedPose = poseFL.get();
+            Pose2d pose2d = estimatedPose.estimatedPose.toPose2d();
+            
+            // Determine standard deviation based on number of tags
+            var stdDevs = estimatedPose.targetsUsed.size() >= 2 
+                ? Constants.Vision.kMultiTagStdDevs 
+                : Constants.Vision.kSingleTagStdDevs;
+            
+            // Add vision measurement to drivetrain
+            drivetrain.addVisionMeasurement(
+                pose2d,
+                estimatedPose.timestampSeconds,
+                stdDevs
+            );
+            
+            // Publish to dashboard for debugging
+            SmartDashboard.putString("Vision/FL/Measurement Status", "Applied");
+        } else {
+            SmartDashboard.putString("Vision/FL/Measurement Status", "No Pose");
+        }
+        
+        // Process FR camera vision measurement
+        var poseFR = visionSubsystem.getEstimatedGlobalPoseFR();
+        if (poseFR.isPresent()) {
+            var estimatedPose = poseFR.get();
+            Pose2d pose2d = estimatedPose.estimatedPose.toPose2d();
+            
+            // Determine standard deviation based on number of tags
+            var stdDevs = estimatedPose.targetsUsed.size() >= 2 
+                ? Constants.Vision.kMultiTagStdDevs 
+                : Constants.Vision.kSingleTagStdDevs;
+            
+            // Add vision measurement to drivetrain
+            drivetrain.addVisionMeasurement(
+                pose2d,
+                estimatedPose.timestampSeconds,
+                stdDevs
+            );
+            
+            // Publish to dashboard for debugging
+            SmartDashboard.putString("Vision/FR/Measurement Status", "Applied");
+        } else {
+            SmartDashboard.putString("Vision/FR/Measurement Status", "No Pose");
+        }
     }
 
     /**

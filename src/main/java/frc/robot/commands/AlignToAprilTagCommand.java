@@ -18,8 +18,8 @@ public class AlignToAprilTagCommand extends Command {
     private static final double DISTANCE_KP = 0.25; // Reduced from 0.5 - smoother approach
     private static final double STRAFE_KP = 0.015; // Reduced from 0.04 - less aggressive strafe
     
-    // Target distance in meters (5 meters directly in front of tag)
-    private static final double TARGET_DISTANCE = 5.0;
+    // Target distance in meters (1 meter directly in front of tag)
+    private static final double TARGET_DISTANCE = 1.0;
     
     // Tolerance values (wider to prevent jitter)
     private static final double YAW_TOLERANCE = 3.0; // Increased from 2.0 degrees
@@ -38,10 +38,13 @@ public class AlignToAprilTagCommand extends Command {
     
     // Timeout for no target visible
     private static final double NO_TARGET_TIMEOUT = 2.0; // seconds
+    private static final double TARGET_LOST_TIMEOUT = 1.0; // seconds - timeout if target is lost after being seen
     
     private boolean isAligned = false;
     private boolean hasSeenTarget = false;
     private final Timer noTargetTimer = new Timer();
+    private final Timer targetLostTimer = new Timer();
+    private boolean targetCurrentlyVisible = false;
 
     /**
      * Creates an AlignToAprilTagCommand with no lateral offset (center alignment)
@@ -69,7 +72,10 @@ public class AlignToAprilTagCommand extends Command {
     public void initialize() {
         isAligned = false;
         hasSeenTarget = false;
+        targetCurrentlyVisible = false;
         noTargetTimer.restart();
+        targetLostTimer.stop();
+        targetLostTimer.reset();
         SmartDashboard.putBoolean("Auto Align Active", true);
         System.out.println("AlignToAprilTagCommand: Starting alignment");
     }
@@ -104,13 +110,23 @@ public class AlignToAprilTagCommand extends Command {
                 .withVelocityY(0)
                 .withRotationalRate(0));
             SmartDashboard.putString("Auto Align Status", "No Target Visible");
-            System.out.println("AlignToAprilTagCommand: No target visible - waiting...");
+            
+            // If we've seen the target before and now lost it, start the lost timer
+            if (hasSeenTarget && !targetLostTimer.hasElapsed(0)) {
+                targetLostTimer.restart();
+                System.out.println("AlignToAprilTagCommand: Target lost! Starting timeout...");
+            }
+            
+            targetCurrentlyVisible = false;
             return;
         }
         
-        // Target is visible, reset timer and mark that we've seen a target
+        // Target is visible, reset timers and mark that we've seen a target
         hasSeenTarget = true;
+        targetCurrentlyVisible = true;
         noTargetTimer.restart();
+        targetLostTimer.stop();
+        targetLostTimer.reset();
         
         // Calculate error values
         // Compensate for camera offset: when camera sees target at 0° yaw, 
@@ -204,6 +220,12 @@ public class AlignToAprilTagCommand extends Command {
         // If we've never seen a target and timeout has elapsed, finish with failure
         if (!hasSeenTarget && noTargetTimer.hasElapsed(NO_TARGET_TIMEOUT)) {
             System.out.println("AlignToAprilTagCommand: No target found after " + NO_TARGET_TIMEOUT + " seconds - canceling");
+            return true;
+        }
+        
+        // If we've seen the target but then lost it for too long, finish with failure
+        if (hasSeenTarget && !targetCurrentlyVisible && targetLostTimer.hasElapsed(TARGET_LOST_TIMEOUT)) {
+            System.out.println("AlignToAprilTagCommand: Target lost for " + TARGET_LOST_TIMEOUT + " seconds - canceling");
             return true;
         }
         
