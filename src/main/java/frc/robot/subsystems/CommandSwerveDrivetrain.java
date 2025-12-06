@@ -9,6 +9,8 @@ import com.ctre.phoenix6.Utils;
 import com.ctre.phoenix6.swerve.SwerveDrivetrainConstants;
 import com.ctre.phoenix6.swerve.SwerveModuleConstants;
 import com.ctre.phoenix6.swerve.SwerveRequest;
+import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.path.PathConstraints;
 
 import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.geometry.Pose2d;
@@ -284,5 +286,17 @@ public class CommandSwerveDrivetrain extends TunerSwerveDrivetrain implements Su
         Matrix<N3, N1> visionMeasurementStdDevs
     ) {
         super.addVisionMeasurement(visionRobotPoseMeters, Utils.fpgaToCurrentTime(timestampSeconds), visionMeasurementStdDevs);
+    }
+
+    public Command pathfindToPose(Pose2d targetPose, PathConstraints constraints ){
+
+        System.out.println("Pathfinding to " + targetPose);
+
+        return AutoBuilder.pathfindToPose(
+        targetPose,
+        constraints,
+        0.0//, // Goal end velocity in meters/sec
+        //0.0 // Rotation delay distance in meters. This is how far the robot should travel before attempting to rotate.
+        );
     }
 }

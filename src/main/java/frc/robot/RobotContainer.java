@@ -11,11 +11,14 @@ import com.ctre.phoenix6.swerve.SwerveRequest;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
+import edu.wpi.first.wpilibj2.command.InstantCommand;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine.Direction;
@@ -44,6 +47,7 @@ import frc.robot.subsystems.VisionSubsystem;
 import frc.robot.subsystems.PumpkinSubsystem;
 import frc.robot.commands.AlignToAprilTagCommand;
 import frc.robot.commands.AlignToPoseCommand;
+import frc.robot.commands.PathplannerCommands;
 import frc.robot.commands.RunPumpkinCommand;
 
 import java.util.Optional;
@@ -144,7 +148,7 @@ public class RobotContainer {
                     // Reset pose using CTRE's resetPose method
                     // Note: CTRE Phoenix 6 swerve uses resetPose(Pose2d) from parent class
                     try {
-                        drivetrain.resetPose(pose);
+                        // drivetrain.resetPose(pose);
                     } catch (Exception e) {
                         System.err.println("Failed to reset pose: " + e.getMessage());
                     }
@@ -262,6 +266,9 @@ public class RobotContainer {
         NamedCommands.registerCommand("AlignToAprilTagCommand", 
             new AlignToAprilTagCommand(drivetrain, visionSubsystem, 0.0));
 
+        NamedCommands.registerCommand("AlignToPoseCommand", 
+            new AlignToPoseCommand(drivetrain, 6.66,4.38,-179));
+
         NamedCommands.registerCommand("RunPumpkinCommand",
             new RunPumpkinCommand(pumpkinSubsystem));
         
@@ -321,7 +328,9 @@ public class RobotContainer {
         );
 
         // Right bumper: Drive to target pose (reads from dashboard)
-        joystick.rightBumper().onTrue(new AlignToPoseCommand(drivetrain));
+        //joystick.rightBumper().onTrue(new AlignToPoseCommand(drivetrain));
+
+        joystick.rightBumper().onTrue( new InstantCommand( ()->drivetrain.pathfindToPose( getTargetPoseFromElastic() , Constants.PathPlanner.constraints).schedule()));
 
         drivetrain.registerTelemetry(logger::telemeterize);
     }
@@ -481,6 +490,18 @@ public class RobotContainer {
 
     public PumpkinSubsystem getPumpkinSubsystem() {
         return pumpkinSubsystem;
+    }
+
+    private Pose2d getTargetPoseFromElastic(){
+
+                Translation2d targetTranslation = new Translation2d(
+            SmartDashboard.getNumber("Target Pose/X", 0.0),
+            SmartDashboard.getNumber("Target Pose/Y", 0.0)
+        );
+
+        Rotation2d targetRotation = new Rotation2d(Units.degreesToRadians(SmartDashboard.getNumber("Target Pose/Heading",0.0)));
+
+        return new Pose2d( targetTranslation, targetRotation );
     }
 }
   

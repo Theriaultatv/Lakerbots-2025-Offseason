@@ -1,6 +1,13 @@
 package frc.robot;
 
+import com.pathplanner.lib.pathfinding.LocalADStar;
+import com.pathplanner.lib.pathfinding.Pathfinding;
+
 import edu.wpi.first.cameraserver.CameraServer;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.networktables.NetworkTable;
 import edu.wpi.first.networktables.NetworkTableEntry;
 import edu.wpi.first.networktables.NetworkTableInstance;
@@ -20,6 +27,10 @@ public class Robot extends TimedRobot {
 
     @Override
     public void robotInit() {
+
+        // EKM - from pathplannerlib pathfinding docs
+        Pathfinding.setPathfinder(new LocalADStar());
+
         m_robotContainer = new RobotContainer();
 
         // Controller (if needed separately from RobotContainer)
@@ -45,6 +56,7 @@ public class Robot extends TimedRobot {
         
         // Update Field2D with current robot pose and vision targets
         m_robotContainer.updateField2d();
+
     }
 
     @Override

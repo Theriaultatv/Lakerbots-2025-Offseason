@@ -34,6 +34,7 @@ import edu.wpi.first.math.util.Units;
 import com.pathplanner.lib.config.PIDConstants;
 //import com.pathplanner.lib.config.RobotConfig;
 //import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+import com.pathplanner.lib.path.PathConstraints;
 
 public class Constants {
   public static class OperatorConstants {
@@ -71,6 +72,8 @@ public class Constants {
 
         // The standard deviations of our vision estimated poses, which affect correction rate
         // (Fake values. Experiment and determine estimation noise on an actual robot.)
+
+        // These are the levels in which you trust the measurment or the prediction.
         public static final Matrix<N3, N1> kSingleTagStdDevs = VecBuilder.fill(4, 4, 8);
         public static final Matrix<N3, N1> kMultiTagStdDevs = VecBuilder.fill(0.5, 0.5, 1);
     }
@@ -175,6 +178,13 @@ public class Constants {
         public static final boolean ENABLE_REPLANNING = true;
         public static final double REPLANNING_TOTAL_ERROR_THRESHOLD = 3.0; // meters
         public static final double REPLANNING_ERROR_SPIKE_THRESHOLD = 2.0; // meters
+
+        // EKM - from Pathplannerlib pathfinding docs
+        // Create the constraints to use while pathfinding
+        public static final PathConstraints constraints = new PathConstraints(
+                1.0, 1.0,
+                Units.degreesToRadians(540), Units.degreesToRadians(720)
+                );
     }
 
     public static class Pumpkin {
